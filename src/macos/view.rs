@@ -1,7 +1,7 @@
 use std::ffi::c_void;
 
 use cocoa::appkit::{NSEvent, NSView, NSWindow};
-use cocoa::base::{id, nil, BOOL, YES, NO};
+use cocoa::base::{id, nil, BOOL, NO, YES};
 use cocoa::foundation::{NSArray, NSPoint, NSRect, NSSize};
 
 use objc::{
@@ -13,15 +13,16 @@ use objc::{
 };
 use uuid::Uuid;
 
-use crate::{Event, EventStatus, MouseButton, MouseEvent, Point, Size, WindowEvent, WindowInfo, WindowOpenOptions};
 use crate::MouseEvent::{ButtonPressed, ButtonReleased};
+use crate::{
+    Event, EventStatus, MouseButton, MouseEvent, Point, Size, WindowEvent, WindowInfo,
+    WindowOpenOptions,
+};
 
 use super::window::WindowState;
 
-
 /// Name of the field used to store the `WindowState` pointer.
 pub(super) const BASEVIEW_STATE_IVAR: &str = "baseview_state";
-
 
 macro_rules! add_simple_mouse_class_method {
     ($class:ident, $sel:ident, $event:expr) => {
@@ -40,7 +41,6 @@ macro_rules! add_simple_mouse_class_method {
         );
     };
 }
-
 
 macro_rules! add_simple_keyboard_class_method {
     ($class:ident, $sel:ident) => {
@@ -70,10 +70,7 @@ macro_rules! add_simple_keyboard_class_method {
     };
 }
 
-
-pub(super) unsafe fn create_view(
-    window_options: &WindowOpenOptions,
-) -> id {
+pub(super) unsafe fn create_view(window_options: &WindowOpenOptions) -> id {
     let class = create_view_class();
 
     let view: id = msg_send![class, alloc];
@@ -88,7 +85,6 @@ pub(super) unsafe fn create_view(
     view
 }
 
-
 unsafe fn create_view_class() -> &'static Class {
     // Use unique class names so that there are no conflicts between different
     // instances. The class is deleted when the view is released. Previously,
@@ -100,32 +96,29 @@ unsafe fn create_view_class() -> &'static Class {
 
     class.add_method(
         sel!(acceptsFirstResponder),
-        property_yes as extern "C" fn(&Object, Sel) -> BOOL
+        property_yes as extern "C" fn(&Object, Sel) -> BOOL,
     );
     class.add_method(
         sel!(isFlipped),
-        property_yes as extern "C" fn(&Object, Sel) -> BOOL
+        property_yes as extern "C" fn(&Object, Sel) -> BOOL,
     );
     class.add_method(
         sel!(preservesContentInLiveResize),
-        property_no as extern "C" fn(&Object, Sel) -> BOOL
+        property_no as extern "C" fn(&Object, Sel) -> BOOL,
     );
     class.add_method(
         sel!(acceptsFirstMouse:),
-        accepts_first_mouse as extern "C" fn(&Object, Sel, id) -> BOOL
+        accepts_first_mouse as extern "C" fn(&Object, Sel, id) -> BOOL,
     );
 
-    class.add_method(
-        sel!(release),
-        release as extern "C" fn(&mut Object, Sel)
-    );
+    class.add_method(sel!(release), release as extern "C" fn(&mut Object, Sel));
     class.add_method(
         sel!(viewWillMoveToWindow:),
-        view_will_move_to_window as extern "C" fn(&Object, Sel, id)
+        view_will_move_to_window as extern "C" fn(&Object, Sel, id),
     );
     class.add_method(
         sel!(updateTrackingAreas:),
-        update_tracking_areas as extern "C" fn(&Object, Sel, id)
+        update_tracking_areas as extern "C" fn(&Object, Sel, id),
     );
 
     class.add_method(
@@ -149,49 +142,19 @@ unsafe fn create_view_class() -> &'static Class {
         sel!(viewDidChangeBackingProperties:),
         view_did_change_backing_properties as extern "C" fn(&Object, Sel, id),
     );
+    class.add_method(
+        sel!(resizeWithOldSuperviewSize:),
+        resize_with_old_superview_size as extern "C" fn(&Object, Sel, id),
+    );
 
-    
-
-    add_simple_mouse_class_method!(
-        class,
-        mouseDown,
-        ButtonPressed(MouseButton::Left)
-    );
-    add_simple_mouse_class_method!(
-        class,
-        mouseUp,
-        ButtonReleased(MouseButton::Left)
-    );
-    add_simple_mouse_class_method!(
-        class,
-        rightMouseDown,
-        ButtonPressed(MouseButton::Right)
-    );
-    add_simple_mouse_class_method!(
-        class,
-        rightMouseUp,
-        ButtonReleased(MouseButton::Right)
-    );
-    add_simple_mouse_class_method!(
-        class,
-        otherMouseDown,
-        ButtonPressed(MouseButton::Middle)
-    );
-    add_simple_mouse_class_method!(
-        class,
-        otherMouseUp,
-        ButtonReleased(MouseButton::Middle)
-    );
-    add_simple_mouse_class_method!(
-        class,
-        mouseEntered,
-        MouseEvent::CursorEntered
-    );
-    add_simple_mouse_class_method!(
-        class,
-        mouseExited,
-        MouseEvent::CursorLeft
-    );
+    add_simple_mouse_class_method!(class, mouseDown, ButtonPressed(MouseButton::Left));
+    add_simple_mouse_class_method!(class, mouseUp, ButtonReleased(MouseButton::Left));
+    add_simple_mouse_class_method!(class, rightMouseDown, ButtonPressed(MouseButton::Right));
+    add_simple_mouse_class_method!(class, rightMouseUp, ButtonReleased(MouseButton::Right));
+    add_simple_mouse_class_method!(class, otherMouseDown, ButtonPressed(MouseButton::Middle));
+    add_simple_mouse_class_method!(class, otherMouseUp, ButtonReleased(MouseButton::Middle));
+    add_simple_mouse_class_method!(class, mouseEntered, MouseEvent::CursorEntered);
+    add_simple_mouse_class_method!(class, mouseExited, MouseEvent::CursorLeft);
 
     add_simple_keyboard_class_method!(class, keyDown);
     add_simple_keyboard_class_method!(class, keyUp);
@@ -202,31 +165,17 @@ unsafe fn create_view_class() -> &'static Class {
     class.register()
 }
 
-
-extern "C" fn property_yes(
-    _this: &Object,
-    _sel: Sel,
-) -> BOOL {
+extern "C" fn property_yes(_this: &Object, _sel: Sel) -> BOOL {
     YES
 }
 
-
-extern "C" fn property_no(
-    _this: &Object,
-    _sel: Sel,
-) -> BOOL {
+extern "C" fn property_no(_this: &Object, _sel: Sel) -> BOOL {
     NO
 }
 
-
-extern "C" fn accepts_first_mouse(
-    _this: &Object,
-    _sel: Sel,
-    _event: id
-) -> BOOL {
+extern "C" fn accepts_first_mouse(_this: &Object, _sel: Sel, _event: id) -> BOOL {
     YES
 }
-
 
 extern "C" fn release(this: &mut Object, _sel: Sel) {
     unsafe {
@@ -240,17 +189,13 @@ extern "C" fn release(this: &mut Object, _sel: Sel) {
 
         let state_ptr: *mut c_void = *this.get_ivar(BASEVIEW_STATE_IVAR);
 
-        if !state_ptr.is_null(){
-            let retain_count_after_build = WindowState::from_field(this)
-                .retain_count_after_build;
+        if !state_ptr.is_null() {
+            let retain_count_after_build = WindowState::from_field(this).retain_count_after_build;
 
             if retain_count <= retain_count_after_build {
                 WindowState::from_field(this).remove_timer();
 
-                this.set_ivar(
-                    BASEVIEW_STATE_IVAR,
-                    ::std::ptr::null() as *const c_void
-                );
+                this.set_ivar(BASEVIEW_STATE_IVAR, ::std::ptr::null() as *const c_void);
 
                 // Drop WindowState
                 Box::from_raw(state_ptr as *mut WindowState);
@@ -265,14 +210,22 @@ extern "C" fn release(this: &mut Object, _sel: Sel) {
     }
 }
 
-extern "C" fn view_did_change_backing_properties(this: &Object, _:Sel, _:id) {
+extern "C" fn view_did_change_backing_properties(this: &Object, _: Sel, _: id) {
+    trigger_resize_event(this)
+}
+
+extern "C" fn resize_with_old_superview_size(this: &Object, _: Sel, _: id) {
+    trigger_resize_event(this)
+}
+
+fn trigger_resize_event(this: &Object) {
     unsafe {
         let ns_window: *mut Object = msg_send![this, window];
 
         let scale_factor: f64 = if ns_window.is_null() {
             1.0
         } else {
-            NSWindow::backingScaleFactor(ns_window) as f64 
+            NSWindow::backingScaleFactor(ns_window) as f64
         };
 
         let state: &mut WindowState = WindowState::from_field(this);
@@ -280,16 +233,13 @@ extern "C" fn view_did_change_backing_properties(this: &Object, _:Sel, _:id) {
         let bounds: NSRect = msg_send![this, bounds];
 
         let window_info = WindowInfo::from_logical_size(
-            Size::new(bounds.size.width, bounds.size.height), 
-            scale_factor
+            Size::new(bounds.size.width, bounds.size.height),
+            scale_factor,
         );
-        
-        state.trigger_event(
-            Event::Window(WindowEvent::Resized(window_info))
-        );
+
+        state.trigger_event(Event::Window(WindowEvent::Resized(window_info)));
     }
 }
-
 
 /// Init/reinit tracking area
 ///
@@ -297,7 +247,7 @@ extern "C" fn view_did_change_backing_properties(this: &Object, _:Sel, _:id) {
 /// https://developer.apple.com/documentation/appkit/nstrackingarea
 /// https://developer.apple.com/documentation/appkit/nstrackingarea/options
 /// https://developer.apple.com/documentation/appkit/nstrackingareaoptions
-unsafe fn reinit_tracking_area(this: &Object, tracking_area: *mut Object){
+unsafe fn reinit_tracking_area(this: &Object, tracking_area: *mut Object) {
     let options: usize = {
         let mouse_entered_and_exited = 0x01;
         let tracking_mouse_moved = 0x02;
@@ -306,9 +256,12 @@ unsafe fn reinit_tracking_area(this: &Object, tracking_area: *mut Object){
         let tracking_in_visible_rect = 0x200;
         let tracking_enabled_during_mouse_drag = 0x400;
 
-        mouse_entered_and_exited | tracking_mouse_moved |
-            tracking_cursor_update | tracking_active_in_active_app |
-            tracking_in_visible_rect | tracking_enabled_during_mouse_drag
+        mouse_entered_and_exited
+            | tracking_mouse_moved
+            | tracking_cursor_update
+            | tracking_active_in_active_app
+            | tracking_in_visible_rect
+            | tracking_enabled_during_mouse_drag
     };
 
     let bounds: NSRect = msg_send![this, bounds];
@@ -321,27 +274,20 @@ unsafe fn reinit_tracking_area(this: &Object, tracking_area: *mut Object){
     ];
 }
 
-
-extern "C" fn view_will_move_to_window(
-    this: &Object,
-    _self: Sel,
-    new_window: id
-){
+extern "C" fn view_will_move_to_window(this: &Object, _self: Sel, new_window: id) {
     unsafe {
         let tracking_areas: *mut Object = msg_send![this, trackingAreas];
         let tracking_area_count = NSArray::count(tracking_areas);
 
-        let _: () = msg_send![class!(NSEvent), setMouseCoalescingEnabled:NO];
+        let _: () = msg_send![class!(NSEvent), setMouseCoalescingEnabled: NO];
 
         if new_window == nil {
             if tracking_area_count != 0 {
                 let tracking_area = NSArray::objectAtIndex(tracking_areas, 0);
 
-
-                let _: () = msg_send![this, removeTrackingArea:tracking_area];
+                let _: () = msg_send![this, removeTrackingArea: tracking_area];
                 let _: () = msg_send![tracking_area, release];
             }
-
         } else {
             if tracking_area_count == 0 {
                 let class = Class::get("NSTrackingArea").unwrap();
@@ -350,27 +296,22 @@ extern "C" fn view_will_move_to_window(
 
                 reinit_tracking_area(this, tracking_area);
 
-                let _: () = msg_send![this, addTrackingArea:tracking_area];
+                let _: () = msg_send![this, addTrackingArea: tracking_area];
             }
 
-            let _: () = msg_send![new_window, setAcceptsMouseMovedEvents:YES];
-            let _: () = msg_send![new_window, makeFirstResponder:this];
+            let _: () = msg_send![new_window, setAcceptsMouseMovedEvents: YES];
+            let _: () = msg_send![new_window, makeFirstResponder: this];
         }
     }
 
     unsafe {
         let superclass = msg_send![this, superclass];
 
-        let () = msg_send![super(this, superclass), viewWillMoveToWindow:new_window];
+        let () = msg_send![super(this, superclass), viewWillMoveToWindow: new_window];
     }
 }
 
-
-extern "C" fn update_tracking_areas(
-    this: &Object,
-    _self: Sel,
-    _: id
-){
+extern "C" fn update_tracking_areas(this: &Object, _self: Sel, _: id) {
     unsafe {
         let tracking_areas: *mut Object = msg_send![this, trackingAreas];
         let tracking_area = NSArray::objectAtIndex(tracking_areas, 0);
@@ -379,15 +320,8 @@ extern "C" fn update_tracking_areas(
     }
 }
 
-
-extern "C" fn mouse_moved(
-    this: &Object,
-    _sel: Sel,
-    event: id
-){
-    let state: &mut WindowState = unsafe {
-        WindowState::from_field(this)
-    };
+extern "C" fn mouse_moved(this: &Object, _sel: Sel, event: id) {
+    let state: &mut WindowState = unsafe { WindowState::from_field(this) };
 
     let point: NSPoint = unsafe {
         let point = NSEvent::locationInWindow(event);
@@ -397,10 +331,8 @@ extern "C" fn mouse_moved(
 
     let position = Point {
         x: point.x,
-        y: point.y
+        y: point.y,
     };
 
-    state.trigger_event(
-        Event::Mouse(MouseEvent::CursorMoved { position })
-    );
+    state.trigger_event(Event::Mouse(MouseEvent::CursorMoved { position }));
 }
