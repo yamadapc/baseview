@@ -1,8 +1,9 @@
 use std::ffi::c_void;
 
 use cocoa::appkit::{NSEvent, NSView, NSWindow};
+use cocoa::appkit::{NSFileContentsPboardType, NSFilenamesPboardType, NSPasteboardTypeSound};
 use cocoa::base::{id, nil, BOOL, NO, YES};
-use cocoa::foundation::{NSArray, NSPoint, NSRect, NSSize};
+use cocoa::foundation::{NSArray, NSPoint, NSRect, NSSize, NSUInteger};
 
 use objc::{
     class,
@@ -13,9 +14,10 @@ use objc::{
 };
 use uuid::Uuid;
 
+use crate::macos::keyboard::from_nsstring;
 use crate::MouseEvent::{ButtonPressed, ButtonReleased};
 use crate::{
-    Event, EventStatus, MouseButton, MouseEvent, Point, Size, WindowEvent, WindowInfo,
+    DragInfo, Event, EventStatus, MouseButton, MouseEvent, Point, Size, WindowEvent, WindowInfo,
     WindowOpenOptions,
 };
 
@@ -82,6 +84,11 @@ pub(super) unsafe fn create_view(window_options: &WindowOpenOptions) -> id {
         NSSize::new(size.width, size.height),
     ));
 
+    log::info!("Registering for sound files drag");
+    let _: id = msg_send![view, registerForDraggedTypes: NSArray::arrayWithObjects(nil, &[
+        NSPasteboardTypeSound, NSFilenamesPboardType, NSFileContentsPboardType
+    ])];
+
     view
 }
 
@@ -109,6 +116,26 @@ unsafe fn create_view_class() -> &'static Class {
     class.add_method(
         sel!(acceptsFirstMouse:),
         accepts_first_mouse as extern "C" fn(&Object, Sel, id) -> BOOL,
+    );
+    class.add_method(
+        sel!(draggingEntered:),
+        dragging_entered as extern "C" fn(&Object, Sel, id) -> NSUInteger,
+    );
+    class.add_method(
+        sel!(prepareForDragOperation:),
+        prepare_for_drag_operation as extern "C" fn(&Object, Sel, id) -> BOOL,
+    );
+    class.add_method(
+        sel!(performDragOperation:),
+        perform_drag_operation as extern "C" fn(&Object, Sel, id) -> BOOL,
+    );
+    class.add_method(
+        sel!(draggingUpdated:),
+        dragging_updated as extern "C" fn(&Object, Sel, id) -> NSUInteger,
+    );
+    class.add_method(
+        sel!(draggingExited:),
+        dragging_exited as extern "C" fn(&Object, Sel, id),
     );
 
     class.add_method(sel!(release), release as extern "C" fn(&mut Object, Sel));
@@ -175,6 +202,67 @@ extern "C" fn property_no(_this: &Object, _sel: Sel) -> BOOL {
 
 extern "C" fn accepts_first_mouse(_this: &Object, _sel: Sel, _event: id) -> BOOL {
     YES
+}
+
+extern "C" fn dragging_entered(this: &Object, _sel: Sel, dragging_info: id) -> NSUInteger {
+    if let Some(drag_info) = unsafe { get_drag_info(dragging_info) } {
+        let state: &mut WindowState = unsafe { WindowState::from_field(this) };
+        let event = WindowEvent::DragEntered(drag_info);
+        state.trigger_event(Event::Window(event));
+    }
+    4 // NSDragOperationGeneric
+}
+
+extern "C" fn dragging_updated(this: &Object, _sel: Sel, dragging_info: id) -> NSUInteger {
+    if let Some(drag_info) = unsafe { get_drag_info(dragging_info) } {
+        let state: &mut WindowState = unsafe { WindowState::from_field(this) };
+        let event = WindowEvent::DragUpdated(drag_info);
+        state.trigger_event(Event::Window(event));
+    }
+    4 // NSDragOperationGeneric
+}
+
+extern "C" fn prepare_for_drag_operation(_this: &Object, _sel: Sel, _dragging_info: id) -> BOOL {
+    YES
+}
+
+extern "C" fn perform_drag_operation(this: &Object, _sel: Sel, dragging_info: id) -> BOOL {
+    if let Some(drag_info) = unsafe { get_drag_info(dragging_info) } {
+        let state: &mut WindowState = unsafe { WindowState::from_field(this) };
+        let event = WindowEvent::DragPerformed(drag_info);
+        state.trigger_event(Event::Window(event));
+    }
+    YES
+}
+
+extern "C" fn dragging_exited(this: &Object, _sel: Sel, dragging_info: id) {
+    let drag_info = unsafe { get_drag_info(dragging_info) };
+    let state: &mut WindowState = unsafe { WindowState::from_field(this) };
+    let event = WindowEvent::DragExited(drag_info);
+    state.trigger_event(Event::Window(event));
+}
+
+unsafe fn get_drag_info(dragging_info: id) -> Option<DragInfo> {
+    if dragging_info == nil {
+        return None;
+    }
+
+    let pasteboard: id = msg_send![dragging_info, draggingPasteboard];
+    let file_list: id = msg_send![pasteboard, propertyListForType: NSFilenamesPboardType];
+
+    if file_list == nil {
+        return None;
+    }
+
+    let mut file_vec: Vec<String> = vec![];
+    let count = NSArray::count(file_list);
+    if count > 0 {
+        let data = NSArray::objectAtIndex(file_list, 0);
+        let str = from_nsstring(data);
+        file_vec.push(str);
+    }
+
+    Some(DragInfo::FilesDragged { files: file_vec })
 }
 
 extern "C" fn release(this: &mut Object, _sel: Sel) {
@@ -301,6 +389,11 @@ extern "C" fn view_will_move_to_window(this: &Object, _self: Sel, new_window: id
 
             let _: () = msg_send![new_window, setAcceptsMouseMovedEvents: YES];
             let _: () = msg_send![new_window, makeFirstResponder: this];
+
+            log::info!("Registering WINDOW for sound files drag");
+            let _: id = msg_send![new_window, registerForDraggedTypes:NSArray::arrayWithObjects(nil, &[
+                NSPasteboardTypeSound, NSFilenamesPboardType, NSFileContentsPboardType
+            ])];
         }
     }
 

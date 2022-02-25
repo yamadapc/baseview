@@ -1,7 +1,6 @@
 use keyboard_types::KeyboardEvent;
 
-use crate::{WindowInfo, Point};
-
+use crate::{Point, WindowInfo};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum MouseButton {
@@ -69,11 +68,20 @@ pub enum MouseEvent {
 }
 
 #[derive(Debug, Clone)]
+pub enum DragInfo {
+    FilesDragged { files: Vec<String> },
+}
+
+#[derive(Debug, Clone)]
 pub enum WindowEvent {
     Resized(WindowInfo),
     Focused,
     Unfocused,
     WillClose,
+    DragEntered(DragInfo),
+    DragUpdated(DragInfo),
+    DragExited(Option<DragInfo>),
+    DragPerformed(DragInfo),
 }
 
 #[derive(Debug, Clone)]
@@ -82,7 +90,6 @@ pub enum Event {
     Keyboard(KeyboardEvent),
     Window(WindowEvent),
 }
-
 
 /// Return value for [WindowHandler::on_event](`crate::WindowHandler::on_event()`),
 /// indicating whether the event was handled by your window or should be passed
