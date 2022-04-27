@@ -1,12 +1,12 @@
 use std::time::Duration;
 
-use rtrb::{RingBuffer, Consumer};
+use rtrb::{Consumer, RingBuffer};
 
 use baseview::{Event, EventStatus, Window, WindowHandler, WindowScalePolicy};
 
 #[derive(Debug, Clone)]
 enum Message {
-    Hello
+    Hello,
 }
 
 struct OpenWindowExample {
@@ -36,22 +36,21 @@ fn main() {
         title: "baseview".into(),
         size: baseview::Size::new(512.0, 512.0),
         scale: WindowScalePolicy::SystemScaleFactor,
+
+        // TODO: Add an example that uses the OpenGL context
+        #[cfg(feature = "opengl")]
+        gl_config: None,
     };
 
-    let (mut tx, rx) = RingBuffer::new(128).split();
+    let (mut tx, rx) = RingBuffer::new(128);
 
-    ::std::thread::spawn(move || {
-        loop {
-            ::std::thread::sleep(Duration::from_secs(5));
+    ::std::thread::spawn(move || loop {
+        ::std::thread::sleep(Duration::from_secs(5));
 
-            if let Err(_) = tx.push(Message::Hello) {
-                println!("Failed sending message");
-            }
+        if let Err(_) = tx.push(Message::Hello) {
+            println!("Failed sending message");
         }
     });
 
-    Window::open_blocking(
-        window_open_options,
-        |_| OpenWindowExample { rx }
-    );
+    Window::open_blocking(window_open_options, |_| OpenWindowExample { rx });
 }

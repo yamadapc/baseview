@@ -79,10 +79,7 @@ pub(super) unsafe fn create_view(window_options: &WindowOpenOptions) -> id {
 
     let size = window_options.size;
 
-    view.initWithFrame_(NSRect::new(
-        NSPoint::new(0., 0.),
-        NSSize::new(size.width, size.height),
-    ));
+    view.initWithFrame_(NSRect::new(NSPoint::new(0., 0.), NSSize::new(size.width, size.height)));
 
     log::info!("Registering for sound files drag");
     let _: id = msg_send![view, registerForDraggedTypes: NSArray::arrayWithObjects(nil, &[
@@ -105,10 +102,8 @@ unsafe fn create_view_class() -> &'static Class {
         sel!(acceptsFirstResponder),
         property_yes as extern "C" fn(&Object, Sel) -> BOOL,
     );
-    class.add_method(
-        sel!(isFlipped),
-        property_yes as extern "C" fn(&Object, Sel) -> BOOL,
-    );
+    class.add_method(sel!(isFlipped), property_yes as extern "C" fn(&Object, Sel) -> BOOL);
+    class.add_method(sel!(isFlipped), property_yes as extern "C" fn(&Object, Sel) -> BOOL);
     class.add_method(
         sel!(preservesContentInLiveResize),
         property_no as extern "C" fn(&Object, Sel) -> BOOL,
@@ -133,10 +128,7 @@ unsafe fn create_view_class() -> &'static Class {
         sel!(draggingUpdated:),
         dragging_updated as extern "C" fn(&Object, Sel, id) -> NSUInteger,
     );
-    class.add_method(
-        sel!(draggingExited:),
-        dragging_exited as extern "C" fn(&Object, Sel, id),
-    );
+    class.add_method(sel!(draggingExited:), dragging_exited as extern "C" fn(&Object, Sel, id));
 
     class.add_method(sel!(release), release as extern "C" fn(&mut Object, Sel));
     class.add_method(
@@ -148,22 +140,10 @@ unsafe fn create_view_class() -> &'static Class {
         update_tracking_areas as extern "C" fn(&Object, Sel, id),
     );
 
-    class.add_method(
-        sel!(mouseMoved:),
-        mouse_moved as extern "C" fn(&Object, Sel, id),
-    );
-    class.add_method(
-        sel!(mouseDragged:),
-        mouse_moved as extern "C" fn(&Object, Sel, id),
-    );
-    class.add_method(
-        sel!(rightMouseDragged:),
-        mouse_moved as extern "C" fn(&Object, Sel, id),
-    );
-    class.add_method(
-        sel!(otherMouseDragged:),
-        mouse_moved as extern "C" fn(&Object, Sel, id),
-    );
+    class.add_method(sel!(mouseMoved:), mouse_moved as extern "C" fn(&Object, Sel, id));
+    class.add_method(sel!(mouseDragged:), mouse_moved as extern "C" fn(&Object, Sel, id));
+    class.add_method(sel!(rightMouseDragged:), mouse_moved as extern "C" fn(&Object, Sel, id));
+    class.add_method(sel!(otherMouseDragged:), mouse_moved as extern "C" fn(&Object, Sel, id));
 
     class.add_method(
         sel!(viewDidChangeBackingProperties:),
@@ -266,11 +246,17 @@ unsafe fn get_drag_info(dragging_info: id) -> Option<DragInfo> {
 }
 
 extern "C" fn release(this: &mut Object, _sel: Sel) {
-    unsafe {
-        let superclass = msg_send![this, superclass];
-
-        let () = msg_send![super(this, superclass), release];
-    }
+    // Hack for breaking circular references. We store the value of retainCount
+    // after build(), and then when retainCount drops back to that value, we
+    // drop the WindowState, hoping that any circular references it holds back
+    // to the NSView (e.g. wgpu surfaces) get released.
+    //
+    // This is definitely broken, since it can be thwarted by e.g. creating a
+    // wgpu surface at some point after build() (which will mean the NSView
+    // never gets dealloced) or dropping a wgpu surface at some point before
+    // drop() (which will mean the WindowState gets dropped early).
+    //
+    // TODO: Find a better solution for circular references.
 
     unsafe {
         let retain_count: usize = msg_send![this, retainCount];
@@ -281,20 +267,14 @@ extern "C" fn release(this: &mut Object, _sel: Sel) {
             let retain_count_after_build = WindowState::from_field(this).retain_count_after_build;
 
             if retain_count <= retain_count_after_build {
-                WindowState::from_field(this).remove_timer();
-
-                this.set_ivar(BASEVIEW_STATE_IVAR, ::std::ptr::null() as *const c_void);
-
-                // Drop WindowState
-                Box::from_raw(state_ptr as *mut WindowState);
+                WindowState::stop_and_free(this);
             }
         }
+    }
 
-        if retain_count == 1 {
-            // Delete class
-            let class = msg_send![this, class];
-            ::objc::runtime::objc_disposeClassPair(class);
-        }
+    unsafe {
+        let superclass = msg_send![this, superclass];
+        let () = msg_send![super(this, superclass), release];
     }
 }
 
@@ -310,11 +290,8 @@ fn trigger_resize_event(this: &Object) {
     unsafe {
         let ns_window: *mut Object = msg_send![this, window];
 
-        let scale_factor: f64 = if ns_window.is_null() {
-            1.0
-        } else {
-            NSWindow::backingScaleFactor(ns_window) as f64
-        };
+        let scale_factor: f64 =
+            if ns_window.is_null() { 1.0 } else { NSWindow::backingScaleFactor(ns_window) as f64 };
 
         let state: &mut WindowState = WindowState::from_field(this);
 
@@ -422,10 +399,7 @@ extern "C" fn mouse_moved(this: &Object, _sel: Sel, event: id) {
         msg_send![this, convertPoint:point fromView:nil]
     };
 
-    let position = Point {
-        x: point.x,
-        y: point.y,
-    };
+    let position = Point { x: point.x, y: point.y };
 
     state.trigger_event(Event::Mouse(MouseEvent::CursorMoved { position }));
 }
