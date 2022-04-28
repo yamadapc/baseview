@@ -103,7 +103,6 @@ unsafe fn create_view_class() -> &'static Class {
         property_yes as extern "C" fn(&Object, Sel) -> BOOL,
     );
     class.add_method(sel!(isFlipped), property_yes as extern "C" fn(&Object, Sel) -> BOOL);
-    class.add_method(sel!(isFlipped), property_yes as extern "C" fn(&Object, Sel) -> BOOL);
     class.add_method(
         sel!(preservesContentInLiveResize),
         property_no as extern "C" fn(&Object, Sel) -> BOOL,
