@@ -1,5 +1,6 @@
 [package]
-name = "baseview"
+name = "augmented_baseview"
+description = "windowing for audio plugin UIs, published fork of https://github.com/RustAudio/baseview"
 version = "0.1.0"
 authors = [
     "William Light <git@wrl.lhiaudio.com>",
