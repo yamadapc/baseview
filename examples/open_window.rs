@@ -3,8 +3,8 @@ use std::time::Duration;
 use rtrb::{Consumer, RingBuffer};
 
 #[cfg(target_os = "macos")]
-use baseview::copy_to_clipboard;
-use baseview::{Event, EventStatus, MouseEvent, Window, WindowHandler, WindowScalePolicy};
+use augmented_baseview::copy_to_clipboard;
+use augmented_baseview::{Event, EventStatus, MouseEvent, Window, WindowHandler, WindowScalePolicy};
 
 #[derive(Debug, Clone)]
 enum Message {
@@ -44,9 +44,9 @@ impl WindowHandler for OpenWindowExample {
 }
 
 fn main() {
-    let window_open_options = baseview::WindowOpenOptions {
+    let window_open_options = augmented_baseview::WindowOpenOptions {
         title: "baseview".into(),
-        size: baseview::Size::new(512.0, 512.0),
+        size: augmented_baseview::Size::new(512.0, 512.0),
         scale: WindowScalePolicy::SystemScaleFactor,
 
         // TODO: Add an example that uses the OpenGL context
