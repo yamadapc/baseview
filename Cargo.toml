@@ -1,7 +1,7 @@
 [package]
 name = "augmented_baseview"
 description = "windowing for audio plugin UIs, published fork of https://github.com/RustAudio/baseview"
-version = "0.1.2"
+version = "0.1.3"
 authors = [
     "William Light <git@wrl.lhiaudio.com>",
     "Charles Saracco <crsaracco@gmail.com>",
@@ -25,7 +25,7 @@ keyboard-types = { version = "0.6.1", default-features = false }
 raw-window-handle = "0.4.3"
 
 [target.'cfg(target_os="linux")'.dependencies]
-xcb = { version = "0.9", features = ["xlib_xcb", "dri2"] }
+xcb = { version = "1.3.0", features = ["xlib_xcb", "dri2"] }
 x11 = { version = "2.21", features = ["xlib", "xcursor"] }
 xcb-util = { version = "0.3", features = ["icccm"] }
 nix = "0.26"
