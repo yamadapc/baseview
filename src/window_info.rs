@@ -9,11 +9,7 @@ pub struct WindowInfo {
 
 impl WindowInfo {
     pub fn from_logical_size(logical_size: Size, scale: f64) -> Self {
-        let scale_recip = if (scale - 1.0).abs() < f64::EPSILON {
-            1.0
-        } else {
-            1.0 / scale
-        };
+        let scale_recip = if (scale - 1.0).abs() < f64::EPSILON { 1.0 } else { 1.0 / scale };
 
         let physical_size = PhySize {
             width: (logical_size.width * scale).round() as u32,
@@ -24,11 +20,7 @@ impl WindowInfo {
     }
 
     pub fn from_physical_size(physical_size: PhySize, scale: f64) -> Self {
-        let scale_recip = if (scale - 1.0).abs() < f64::EPSILON {
-            1.0
-        } else {
-            1.0 / scale
-        };
+        let scale_recip = if (scale - 1.0).abs() < f64::EPSILON { 1.0 } else { 1.0 / scale };
 
         let logical_size = Size {
             width: f64::from(physical_size.width) * scale_recip,

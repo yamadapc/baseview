@@ -4,7 +4,9 @@ use rtrb::{Consumer, RingBuffer};
 
 #[cfg(target_os = "macos")]
 use augmented_baseview::copy_to_clipboard;
-use augmented_baseview::{Event, EventStatus, MouseEvent, Window, WindowHandler, WindowScalePolicy};
+use augmented_baseview::{
+    Event, EventStatus, MouseEvent, Window, WindowHandler, WindowScalePolicy,
+};
 
 #[derive(Debug, Clone)]
 enum Message {
